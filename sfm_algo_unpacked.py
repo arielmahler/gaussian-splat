@@ -1,5 +1,6 @@
 from numpy import all, any, array, arctan2, cos, sin, exp, dot, log, logical_and, roll, sqrt, stack, trace, unravel_index, pi, deg2rad, rad2deg, where, zeros, floor, full, nan, isnan, round, float32
 from numpy.linalg import det, lstsq, norm
+import cv2
 from cv2 import resize, GaussianBlur, subtract, KeyPoint, INTER_LINEAR, INTER_NEAREST
 from functools import cmp_to_key
 import logging
@@ -54,7 +55,7 @@ def generateGaussianImages(image, num_octaves, gaussian_kernels):
         gaussian_images.append(gaussian_images_in_octave)
         octave_base = gaussian_images_in_octave[-3]
         image = resize(octave_base, (int(octave_base.shape[1] / 2), int(octave_base.shape[0] / 2)), interpolation=INTER_NEAREST)
-    return array(gaussian_images)
+    return gaussian_images
 
 def generateDoGImages(gaussian_images):
     """Generate Difference-of-Gaussians image pyramid
@@ -67,7 +68,7 @@ def generateDoGImages(gaussian_images):
         for first_image, second_image in zip(gaussian_images_in_octave, gaussian_images_in_octave[1:]):
             dog_images_in_octave.append(subtract(second_image, first_image))  # ordinary subtraction will not work because the images are unsigned integers
         dog_images.append(dog_images_in_octave)
-    return array(dog_images)
+    return dog_images
 
 def findScaleSpaceExtrema(gaussian_images, dog_images, num_intervals, sigma, image_border_width, contrast_threshold=0.04):
     """Find pixel positions of all scale-space extrema in the image pyramid
@@ -296,7 +297,7 @@ def generateDescriptors(keypoints, gaussian_images, window_width=4, num_bins=8, 
 
     for keypoint in keypoints:
         octave, layer, scale = unpackOctave(keypoint)
-        gaussian_image = gaussian_images[octave + 1, layer]
+        gaussian_image = gaussian_images[octave + 1][layer]
         num_rows, num_cols = gaussian_image.shape
         point = round(scale * array(keypoint.pt)).astype('int')
         bins_per_degree = num_bins / 360.
@@ -412,9 +413,8 @@ logger = logging.getLogger(__name__)
 
 MIN_MATCH_COUNT = 10
 
-img1 = cv2.imread('box.png', 0)           # queryImage
-img2 = cv2.imread('box_in_scene.png', 0)  # trainImage
-
+img1 = cv2.imread('box.png', cv2.IMREAD_GRAYSCALE)           # queryImage
+img2 = cv2.imread('box_in_scene.png', cv2.IMREAD_GRAYSCALE)  # trainImage
 
 # Compute SIFT keypoints and descriptors
 kp1, des1 = computeKeypointsAndDescriptors(img1)
