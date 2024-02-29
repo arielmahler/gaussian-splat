@@ -1,6 +1,6 @@
 import numpy as np
 import cv2
-import pysift
+import sfm_algo_unpacked as pysift
 from matplotlib import pyplot as plt
 import logging
 logger = logging.getLogger(__name__)

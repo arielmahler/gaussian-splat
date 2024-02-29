@@ -413,8 +413,8 @@ logger = logging.getLogger(__name__)
 
 MIN_MATCH_COUNT = 10
 
-img1 = cv2.imread('box.png', cv2.IMREAD_GRAYSCALE)           # queryImage
-img2 = cv2.imread('box_in_scene.png', cv2.IMREAD_GRAYSCALE)  # trainImage
+img1 = cv2.imread('dino_data/dino00.jpg', cv2.IMREAD_GRAYSCALE)
+img2 = cv2.imread('dino_data/dino01.jpg', cv2.IMREAD_GRAYSCALE)  
 
 # Compute SIFT keypoints and descriptors
 kp1, des1 = computeKeypointsAndDescriptors(img1)
