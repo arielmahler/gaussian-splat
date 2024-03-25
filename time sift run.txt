@@ -1,0 +1,217 @@
+sfm_algo_unpacked.py"
+base image time:
+0.008006811141967773
+computeNumberOfOctaves time:
+0.0
+generateGaussianKernels time:
+0.0
+Gaussian Blur time:
+-0.0025017261505126953
+Gaussian Blur time:
+-0.0030031204223632812
+Gaussian Blur time:
+-0.004003047943115234
+Gaussian Blur time:
+-0.00450444221496582
+Gaussian Blur time: 
+-0.007005929946899414
+Gaussian Blur time:
+-0.0010004043579101562
+Gaussian Blur time:
+-0.001001119613647461
+Gaussian Blur time:
+-0.0010008811950683594
+Gaussian Blur time:
+-0.0015010833740234375
+Gaussian Blur time:
+-0.0020020008087158203
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+-0.0005004405975341797
+Gaussian Blur time:
+-0.0005002021789550781
+Gaussian Blur time:
+0.0
+Gaussian Blur time: 
+0.0
+Gaussian Blur time:
+-0.0005009174346923828
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+-0.0004999637603759766
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+-0.0005002021789550781
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+generateGaussianImages time:
+0.04053544998168945
+generateDoGImages time:
+0.010509252548217773
+findScaleSpaceExtrema time:
+24.56206703186035
+removeDuplicateKeypoints time:
+0.00600433349609375
+convertKeypointsToInputImageSize time:
+0.005003929138183594
+generateDescriptors time:
+38.89185667037964
+base image time:
+0.004503965377807617
+computeNumberOfOctaves time:
+0.0
+generateGaussianKernels time:
+0.0
+Gaussian Blur time: 
+-0.0030028820037841797
+Gaussian Blur time:
+-0.003503084182739258
+Gaussian Blur time:
+-0.004003047943115234
+Gaussian Blur time:
+-0.0050046443939208984
+Gaussian Blur time: 
+-0.006505250930786133
+Gaussian Blur time:
+-0.0010018348693847656
+Gaussian Blur time:
+-0.0009992122650146484
+Gaussian Blur time:
+-0.001001596450805664
+Gaussian Blur time:
+-0.0010004043579101562
+Gaussian Blur time:
+-0.0015015602111816406
+Gaussian Blur time:
+-0.0005004405975341797
+Gaussian Blur time:
+-0.0005002021789550781
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+-0.0004994869232177734
+Gaussian Blur time:
+-0.0005002021789550781
+Gaussian Blur time: 
+0.0
+Gaussian Blur time:
+-0.0005002021789550781
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+-0.0004999637603759766
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+Gaussian Blur time:
+0.0
+generateGaussianImages time:
+0.04053521156311035
+generateDoGImages time:
+0.010007619857788086
+findScaleSpaceExtrema time:
+25.403788089752197
+removeDuplicateKeypoints time:
+0.006507158279418945
+convertKeypointsToInputImageSize time:
+0.00550389289855957
+generateDescriptors time:
+40.59882068634033

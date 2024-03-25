@@ -3,12 +3,21 @@ import cv2
 import numpy as np
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
+import time
 
 def find_correspondence_points(img1, img2):
 
+    start = time.time()
     kp1, des1 = computeKeypointsAndDescriptors(img1)
+    end = time.time()
+    print("Compute keypoints and descriptors time: ")
+    print(start - end)
     kp2, des2 = computeKeypointsAndDescriptors(img2)
+    end = time.time()
+    print("Compute keypoints and descriptors time both images: ")
+    print(start - end)
 
+    start = time.time()
     FLANN_INDEX_KDTREE = 0
     index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
     search_params = dict(checks=50)
@@ -28,6 +37,10 @@ def find_correspondence_points(img1, img2):
 
     pts1 = src_pts[mask == 1]
     pts2 = dst_pts[mask == 1]
+
+    end = time.time()
+    print("Point matching time:")
+    print(start - end)
 
     return pts1.T, pts2.T
 
@@ -176,6 +189,8 @@ points1, points2, intrinsic = dino()
 
 points1n = np.dot(np.linalg.inv(intrinsic), points1)
 points2n = np.dot(np.linalg.inv(intrinsic), points2)
+
+start = time.time()
 E = compute_essential_normalized(points1n, points2n)
 print('Computed essential matrix:', (-E / E[0][1]))
 
@@ -195,6 +210,10 @@ for i, P2 in enumerate(P2s):
 
 P2 = np.linalg.inv(np.vstack([P2s[ind], [0, 0, 0, 1]]))[:3, :4]
 tripoints3d = linear_triangulation(points1n, points2n, P1, P2)
+
+end = time.time()
+print("Point cloud time")
+print(start - end)
 
 fig = plt.figure()
 fig.suptitle('3D reconstructed', fontsize=16)

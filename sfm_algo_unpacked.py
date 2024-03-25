@@ -4,6 +4,7 @@ import cv2
 from cv2 import resize, GaussianBlur, subtract, KeyPoint, INTER_LINEAR, INTER_NEAREST
 from functools import cmp_to_key
 import logging
+import time
 
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,11 @@ def generateGaussianImages(image, num_octaves, gaussian_kernels):
         gaussian_images_in_octave = []
         gaussian_images_in_octave.append(image)  # first image in octave already has the correct blur
         for gaussian_kernel in gaussian_kernels[1:]:
+            start = time.time()
             image = GaussianBlur(image, (0, 0), sigmaX=gaussian_kernel, sigmaY=gaussian_kernel)
+            end = time.time()
+            print("Gaussian Blur time: ")
+            print(start - end)
             gaussian_images_in_octave.append(image)
         gaussian_images.append(gaussian_images_in_octave)
         octave_base = gaussian_images_in_octave[-3]
@@ -357,15 +362,60 @@ def computeKeypointsAndDescriptors(image, sigma=1.6, num_intervals=3, assumed_bl
     """Compute SIFT keypoints and descriptors for an input image
     """
     image = image.astype('float32')
+    start = time.time()
     base_image = generateBaseImage(image, sigma, assumed_blur)
+    end = time.time()
+    print("base image time:")
+    print(end - start)
+
+    start = time.time()
     num_octaves = computeNumberOfOctaves(base_image.shape)
+    end = time.time()
+    print("computeNumberOfOctaves time:")
+    print(end - start)
+
+    start = time.time()
     gaussian_kernels = generateGaussianKernels(sigma, num_intervals)
+    end = time.time()
+    print("generateGaussianKernels time:")
+    print(end - start)
+
+    start = time.time()
     gaussian_images = generateGaussianImages(base_image, num_octaves, gaussian_kernels)
+    end = time.time()
+    print("generateGaussianImages time:")
+    print(end - start)
+
+    start = time.time()
     dog_images = generateDoGImages(gaussian_images)
+    end = time.time()
+    print("generateDoGImages time:")
+    print(end - start)
+
+    start = time.time()
     keypoints = findScaleSpaceExtrema(gaussian_images, dog_images, num_intervals, sigma, image_border_width)
+    end = time.time()
+    print("findScaleSpaceExtrema time:")
+    print(end - start)
+
+    start = time.time()
     keypoints = removeDuplicateKeypoints(keypoints)
+    end = time.time()
+    print("removeDuplicateKeypoints time:")
+    print(end - start)
+
+    start = time.time()
     keypoints = convertKeypointsToInputImageSize(keypoints)
+    end = time.time()
+    print("convertKeypointsToInputImageSize time:")
+    print(end - start)
+
+    start = time.time()
     descriptors = generateDescriptors(keypoints, gaussian_images)
+    end = time.time()
+    print("generateDescriptors time:")
+    print(end - start)
+
     return keypoints, descriptors
 
 import numpy as np
