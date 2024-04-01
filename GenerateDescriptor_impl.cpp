@@ -2,12 +2,13 @@
 #include <ap_axi_sdata.h>
 
 typedef ap_axis<128,1,1,1> AXI_VAL;
+typedef ap_axis<32,1,1,1> RET_VAL;
 typedef ap_int<32> uint32_t;
 typedef ap_int<16> uint16_t;
 typedef ap_fixed<16, 16, AP_TRN, AP_SAT> frac_t;
 // TODO: revisit these types
 typedef ap_fixed<32, 16, AP_TRN, AP_SAT> data_t;
-typedef ap_int<32> tensor_t;
+typedef float tensor_t;
 
 // Placeholder type
 typedef ap_int<128> payload_t;
@@ -17,15 +18,17 @@ typedef ap_fixed<32, 16, AP_TRN, AP_SAT> coef_t;
 #define WIN_WIDTH 11
 #define N_BINS 8
 
-void filt (hls::stream<AXI_VAL>& y, hls::stream<AXI_VAL>& x) {
+void filt (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 #pragma HLS INTERFACE m_axi depth=11 port=c
 #pragma HLS INTERFACE axis register both port=x
 #pragma HLS INTERFACE axis register both port=y
 #pragma HLS INTERFACE ap_ctrl_none port=return
 
+  // Create histogram_tensor, setting all values to zero
+  tensor_t histogram_tensor[WIN_WIDTH + 2][WIN_WIDTH + 2][N_BINS] = {};
+  RET_VAL output;
+
   while(1) {
-	data_t data;
-	tensor_t t[WIN_WIDTH][WIN_WIDTH][N_BINS];
 	AXI_VAL tmp1;
 
 	// In theory x now contains the 4 values
@@ -38,10 +41,10 @@ void filt (hls::stream<AXI_VAL>& y, hls::stream<AXI_VAL>& x) {
 	// Let each of the values exist along 32 bits
 	uint32_t bitmask = 0xFFFFFFFF;
 	payload_t data = tmp1.data;
-	data_t row_bin = (payload_t >> 0) & bitmask;
-	data_t col_bin = (payload_t >> 32) & bitmask;
-	data_t magnitude = (payload_t >> 64) & bitmask;
-	data_t orientation_bin = (payload_t >> 96) & bitmask;
+	data_t row_bin = (data >> 0) & bitmask;
+	data_t col_bin = (data >> 32) & bitmask;
+	data_t magnitude = (data >> 64) & bitmask;
+	data_t orientation_bin = (data >> 96) & bitmask;
 
 	// split the row_bin and col_bin into their integer and fractional parts
 	uint16_t row_int = row_bin >> 16;
@@ -75,20 +78,18 @@ void filt (hls::stream<AXI_VAL>& y, hls::stream<AXI_VAL>& x) {
 	coef_t c000 = c00 * (1 - orientation_fraction);
 
 	// Add tensors
-	t[row_int + 1][col_int + 1][orientation_bin_int] += c000;
-	t[row_int + 1][col_int + 1][(orientation_bin_int + 1) % N_BINS] += c001;
-	t[row_int + 1][col_int + 2][orientation_bin_int] += c010;
-	t[row_int + 1][col_int + 2][(orientation_bin_int + 1) % N_BINS] += c011;
-	t[row_int + 2][col_int + 1][orientation_bin_int] += c100;
-	t[row_int + 2][col_int + 1][(orientation_bin_int + 1) % N_BINS] += c101;
-	t[row_int + 2][col_int + 2][orientation_bin_int] += c110;
-	t[row_int + 2][col_int + 2][(orientation_bin_int + 1) % N_BINS] += c111;
+	histogram_tensor[row_int + 1][col_int + 1][orientation_bin_int] += c000;
+	histogram_tensor[row_int + 1][col_int + 1][(orientation_bin_int + 1) % N_BINS] += c001;
+	histogram_tensor[row_int + 1][col_int + 2][orientation_bin_int] += c010;
+	histogram_tensor[row_int + 1][col_int + 2][(orientation_bin_int + 1) % N_BINS] += c011;
+	histogram_tensor[row_int + 2][col_int + 1][orientation_bin_int] += c100;
+	histogram_tensor[row_int + 2][col_int + 1][(orientation_bin_int + 1) % N_BINS] += c101;
+	histogram_tensor[row_int + 2][col_int + 2][orientation_bin_int] += c110;
+	histogram_tensor[row_int + 2][col_int + 2][(orientation_bin_int + 1) % N_BINS] += c111;
 
-	AXI_VAL output;
-	output.data = acc;
+
 	output.keep = tmp1.keep;
 	output.strb = tmp1.strb;
-	output.last = tmp1.last;
 	output.dest = tmp1.dest;
 	output.id = tmp1.id;
 	output.user = tmp1.user;
@@ -97,5 +98,27 @@ void filt (hls::stream<AXI_VAL>& y, hls::stream<AXI_VAL>& x) {
 	if (tmp1.last) {
 		break;
 	}
+  }
+
+  // total area of the array
+  int dim1 = (WIN_WIDTH + 2);
+  int dim2 = (WIN_WIDTH + 2);
+  int dim3 = N_BINS;
+  while (dim1 > 0) {
+	  output.data = histogram_tensor[dim1][dim2][dim3];
+	  output.last = 0;
+
+	  if (dim3 > 0) {
+		  dim3 -= 1;
+	  } else if (dim2 > 0) {
+		  dim2 -= 1;
+		  dim3 = N_BINS;
+	  } else if (dim1 > 0) {
+		  dim1 -= 1;
+		  dim2 = WIN_WIDTH + 2;
+		  dim3 = N_BINS;
+	  } else {
+		  output.last = 1;
+	  }
   }
 }
