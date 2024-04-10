@@ -16,7 +16,7 @@ typedef ap_int<128> payload_t;
 typedef ap_fixed<32, 16, AP_TRN, AP_SAT> coef_t;
 
 // TODO: placeholders for histogram_tensor
-#define WIN_WIDTH 11
+#define WIN_WIDTH 4
 #define N_BINS 8
 
 void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
@@ -26,14 +26,17 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 
   // Create histogram_tensor, setting all values to zero
   tensor_t histogram_tensor[WIN_WIDTH + 2][WIN_WIDTH + 2][N_BINS] = {};
-#pragma HLS ARRAY_PARTITION dim=3 type=complete variable=histogram_tensor
 #pragma HLS BIND_STORAGE variable=histogram_tensor type=ram_t2p
+#pragma HLS ARRAY_PARTITION dim=1 factor=1 type=block variable=histogram_tensor
+#pragma HLS ARRAY_PARTITION dim=2 factor=1 type=block variable=histogram_tensor
+#pragma HLS ARRAY_PARTITION dim=3 factor=1 type=block  variable=histogram_tensor
 
 
 
   RET_VAL output;
 
   while(1) {
+#pragma HLS PIPELINE II=8
 	AXI_VAL tmp1;
 
 	// In theory x now contains the 4 values
@@ -88,7 +91,7 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	coef_t c001 = c00 * orientation_fraction;
 	coef_t c000 = c00 * (1 - orientation_fraction);
 
-//	ap_wait();
+	ap_wait();
 
 	// Add tensors
 	data_t read1 = histogram_tensor[row_int + 1][col_int + 1][orientation_bin_int];
@@ -99,6 +102,8 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	data_t read6 = histogram_tensor[row_int + 2][col_int + 1][(orientation_bin_int + 1) % N_BINS];
 	data_t read7 = histogram_tensor[row_int + 2][col_int + 2][orientation_bin_int];
 	data_t read8 = histogram_tensor[row_int + 2][col_int + 2][(orientation_bin_int + 1) % N_BINS];
+
+//#pragma HLS PROTOCOL mode=fixed
 
 	ap_wait();
 
@@ -111,6 +116,7 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	histogram_tensor[row_int + 2][col_int + 2][orientation_bin_int] = c110 + read7;
 	histogram_tensor[row_int + 2][col_int + 2][(orientation_bin_int + 1) % N_BINS] = c111 + read8;
 
+	ap_wait();
 
 	output.keep = tmp1.keep;
 	output.strb = tmp1.strb;
