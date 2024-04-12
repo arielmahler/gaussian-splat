@@ -190,13 +190,23 @@ points1, points2, intrinsic = dino()
 points1n = np.dot(np.linalg.inv(intrinsic), points1)
 points2n = np.dot(np.linalg.inv(intrinsic), points2)
 
+start2 = time.time()
 start = time.time()
 E = compute_essential_normalized(points1n, points2n)
 print('Computed essential matrix:', (-E / E[0][1]))
 
-P1 = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
-P2s = compute_P_from_essential(E)
+end = time.time()
+print("Essential matrix time")
+print(start - end)
 
+P1 = np.array([[1, 0, 0, 0], [0, 1, 0, 0], [0, 0, 1, 0]])
+start = time.time()
+P2s = compute_P_from_essential(E)
+end = time.time()
+print("Pose time")
+print(start - end)
+
+start = time.time()
 ind = -1
 for i, P2 in enumerate(P2s):
     d1 = reconstruct_one_point(
@@ -207,13 +217,19 @@ for i, P2 in enumerate(P2s):
 
     if d1[2] > 0 and d2[2] > 0:
         ind = i
+end = time.time()
+print("Point reconstruction time")
+print(start - end)
 
+start = time.time()
 P2 = np.linalg.inv(np.vstack([P2s[ind], [0, 0, 0, 1]]))[:3, :4]
 tripoints3d = linear_triangulation(points1n, points2n, P1, P2)
-
 end = time.time()
+print("Triangulation time")
+
+end2 = time.time()
 print("Point cloud time")
-print(start - end)
+print(start2 - end2)
 
 fig = plt.figure()
 fig.suptitle('3D reconstructed', fontsize=16)

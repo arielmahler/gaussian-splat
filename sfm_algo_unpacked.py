@@ -5,6 +5,10 @@ from cv2 import resize, GaussianBlur, subtract, KeyPoint, INTER_LINEAR, INTER_NE
 from functools import cmp_to_key
 import logging
 import time
+from pynq import Overlay
+from pynq import allocate
+from fxpmath import Fxp
+from rig.type_casts import fp_to_float
 
 
 logger = logging.getLogger(__name__)
@@ -40,11 +44,7 @@ def generateGaussianImages(image, num_octaves, gaussian_kernels):
         gaussian_images_in_octave = []
         gaussian_images_in_octave.append(image)  # first image in octave already has the correct blur
         for gaussian_kernel in gaussian_kernels[1:]:
-            start = time.time()
             image = GaussianBlur(image, (0, 0), sigmaX=gaussian_kernel, sigmaY=gaussian_kernel)
-            end = time.time()
-            print("Gaussian Blur time: ")
-            print(start - end)
             gaussian_images_in_octave.append(image)
         gaussian_images.append(gaussian_images_in_octave)
         octave_base = gaussian_images_in_octave[-3]
@@ -264,6 +264,103 @@ def unpackOctave(keypoint):
         octave = octave | -128
     scale = 1 / float32(1 << octave) if octave >= 0 else float32(1 << -octave)
     return octave, layer, scale
+
+def fpga_zip(*arrays):
+    minimum = min([len(array) for array in arrays])
+    input_buf = []
+    for i in range(minimum):
+        #convert values to fixed point
+        row_bin_fixed = Fxp(arrays[0][i], signed=True, n_word=32, n_frac=16)
+        col_bin_fixed = Fxp(arrays[1][i], signed=True, n_word=32, n_frac=16)
+        magnitude_fixed = Fxp(arrays[2][i], signed=True, n_word=32, n_frac=16)
+        orientation_bin_fixed = Fxp(arrays[3][i], signed=True, n_word=32, n_frac=16)
+        in_val = np.uint128(str(row_bin_fixed.bin()) + str(col_bin_fixed.bin()) + str(magnitude_fixed.bin()) + str(orientation_bin_fixed.bin()))
+        input_buf.append(in_val)
+    return input_buf
+
+def fpga_unzip(array):
+    histogram_tensor = []
+    for val in array[::-1]:
+        f = fp_to_float(n_frac=16)
+        histogram_tensor.append(f(int(val,2)))
+    return histogram_tensor
+
+
+
+def generateDescriptors_hardware(keypoints, gaussian_images, window_width=4, num_bins=8, scale_multiplier=3, descriptor_max_value=0.2):
+    """Generate descriptors for each keypoint
+    """
+    logger.debug('Generating descriptors...')
+    descriptors = []
+
+    for keypoint in keypoints:
+        octave, layer, scale = unpackOctave(keypoint)
+        gaussian_image = gaussian_images[octave + 1][layer]
+        num_rows, num_cols = gaussian_image.shape
+        point = round(scale * array(keypoint.pt)).astype('int')
+        bins_per_degree = num_bins / 360.
+        angle = 360. - keypoint.angle
+        cos_angle = cos(deg2rad(angle))
+        sin_angle = sin(deg2rad(angle))
+        weight_multiplier = -0.5 / ((0.5 * window_width) ** 2)
+        row_bin_list = []
+        col_bin_list = []
+        magnitude_list = []
+        orientation_bin_list = []
+        histogram_tensor = zeros((window_width + 2, window_width + 2, num_bins)).tolist()   # first two dimensions are increased by 2 to account for border effects
+        overlay = Overlay('/home/xilinx/pynq/overlays/histo_tensor/design_1.bit')
+        dma = histogram_tensor.axi_dma_0
+        output_buffer = allocate(shape=(len(histogram_tensor),len(histogram_tensor[0]),len(histogram_tensor[0][1])), dtype=np.uint32)
+
+        
+
+        # Descriptor window size (described by half_width)
+        hist_width = scale_multiplier * 0.5 * scale * keypoint.size
+        half_width = int(round(hist_width * sqrt(2) * (window_width + 1) * 0.5))   # sqrt(2) corresponds to diagonal length of a pixel
+        half_width = int(min(half_width, sqrt(num_rows ** 2 + num_cols ** 2)))     # ensure half_width lies within image
+
+        for row in range(-half_width, half_width + 1):
+            for col in range(-half_width, half_width + 1):
+                row_rot = col * sin_angle + row * cos_angle
+                col_rot = col * cos_angle - row * sin_angle
+                row_bin = (row_rot / hist_width) + 0.5 * window_width - 0.5
+                col_bin = (col_rot / hist_width) + 0.5 * window_width - 0.5
+                if row_bin > -1 and row_bin < window_width and col_bin > -1 and col_bin < window_width:
+                    window_row = int(round(point[1] + row))
+                    window_col = int(round(point[0] + col))
+                    if window_row > 0 and window_row < num_rows - 1 and window_col > 0 and window_col < num_cols - 1:
+                        dx = gaussian_image[window_row, window_col + 1] - gaussian_image[window_row, window_col - 1]
+                        dy = gaussian_image[window_row - 1, window_col] - gaussian_image[window_row + 1, window_col]
+                        gradient_magnitude = sqrt(dx * dx + dy * dy)
+                        gradient_orientation = rad2deg(arctan2(dy, dx)) % 360
+                        weight = exp(weight_multiplier * ((row_rot / hist_width) ** 2 + (col_rot / hist_width) ** 2))
+                        row_bin_list.append(row_bin)
+                        col_bin_list.append(col_bin)
+                        magnitude_list.append(weight * gradient_magnitude)
+                        orientation_bin_list.append((gradient_orientation - angle) * bins_per_degree)
+        
+        # do trilenear interpolation using the fpga overlay
+        input_buf = fpga_zip(row_bin_list, col_bin_list, magnitude_list, orientation_bin_list)
+        input_buffer = allocate(shape=(len(input_buf)), dtype=np.uint128)
+        input_buffer[:] = input_buf
+        dma.sendchannel.transfer(input_buffer)
+        dma.recvchannel.transfer(output_buffer)
+        dma.sendchannel.wait()
+        dma.recvchannel.wait()
+
+        descriptor_vector = fpga_unzip(output_buffer)
+
+
+        # Threshold and normalize descriptor_vector
+        threshold = norm(descriptor_vector) * descriptor_max_value
+        descriptor_vector[descriptor_vector > threshold] = threshold
+        descriptor_vector /= max(norm(descriptor_vector), float_tolerance)
+        # Multiply by 512, round, and saturate between 0 and 255 to convert from float32 to unsigned char (OpenCV convention)
+        descriptor_vector = round(512 * descriptor_vector)
+        descriptor_vector[descriptor_vector < 0] = 0
+        descriptor_vector[descriptor_vector > 255] = 255
+        descriptors.append(descriptor_vector)
+    return array(descriptors, dtype='float32')
 
 def generateDescriptors(keypoints, gaussian_images, window_width=4, num_bins=8, scale_multiplier=3, descriptor_max_value=0.2):
     """Generate descriptors for each keypoint
