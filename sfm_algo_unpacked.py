@@ -5,7 +5,6 @@ from cv2 import resize, GaussianBlur, subtract, KeyPoint, INTER_LINEAR, INTER_NE
 from functools import cmp_to_key
 import logging
 import time
-from pynq import Overlay
 from pynq import allocate
 from fxpmath import Fxp
 from rig.type_casts import fp_to_float
@@ -287,7 +286,7 @@ def fpga_unzip(array):
 
 
 
-def generateDescriptors_hardware(keypoints, gaussian_images, window_width=4, num_bins=8, scale_multiplier=3, descriptor_max_value=0.2):
+def generateDescriptors_hardware(keypoints, gaussian_images, dma, window_width=4, num_bins=8, scale_multiplier=3, descriptor_max_value=0.2):
     """Generate descriptors for each keypoint
     """
     logger.debug('Generating descriptors...')
@@ -308,8 +307,6 @@ def generateDescriptors_hardware(keypoints, gaussian_images, window_width=4, num
         magnitude_list = []
         orientation_bin_list = []
         histogram_tensor = zeros((window_width + 2, window_width + 2, num_bins)).tolist()   # first two dimensions are increased by 2 to account for border effects
-        overlay = Overlay('/home/xilinx/pynq/overlays/histo_tensor/design_1.bit')
-        dma = histogram_tensor.axi_dma_0
         output_buffer = allocate(shape=(len(histogram_tensor),len(histogram_tensor[0]),len(histogram_tensor[0][1])), dtype=np.uint32)
 
         

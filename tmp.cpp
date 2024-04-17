@@ -15,7 +15,6 @@ typedef ap_fixed<32, 16, AP_TRN, AP_SAT> tensor_t;
 typedef ap_int<128> payload_t;
 typedef ap_fixed<32, 16, AP_TRN, AP_SAT> coef_t;
 
-// TODO: placeholders for histogram_tensor
 #define WIN_WIDTH 4
 #define N_BINS 8
 
@@ -27,9 +26,9 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
   // Create histogram_tensor, setting all values to zero
   tensor_t histogram_tensor[WIN_WIDTH + 2][WIN_WIDTH + 2][N_BINS] = {};
 #pragma HLS BIND_STORAGE variable=histogram_tensor type=ram_t2p
-#pragma HLS ARRAY_PARTITION dim=1 factor=1 type=block variable=histogram_tensor
-#pragma HLS ARRAY_PARTITION dim=2 factor=1 type=block variable=histogram_tensor
-#pragma HLS ARRAY_PARTITION dim=3 factor=1 type=block  variable=histogram_tensor
+//#pragma HLS ARRAY_PARTITION dim=1 factor=1 type=block variable=histogram_tensor
+//#pragma HLS ARRAY_PARTITION dim=2 factor=1 type=block variable=histogram_tensor
+//#pragma HLS ARRAY_PARTITION dim=3 factor=1 type=block  variable=histogram_tensor
 
 
 
@@ -49,10 +48,14 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	// Let each of the values exist along 32 bits
 	uint32_t bitmask = 0xFFFFFFFF;
 	payload_t data = tmp1.data;
-	data_t row_bin = (data >> 0) & bitmask;
-	data_t col_bin = (data >> 32) & bitmask;
-	data_t magnitude = (data >> 64) & bitmask;
-	data_t orientation_bin = (data >> 96) & bitmask;
+	float row_bin_f = (data >> 0) & bitmask;
+	float col_bin_f = (data >> 32) & bitmask;
+	float magnitude_f = (data >> 64) & bitmask;
+	float orientation_bin_f = (data >> 96) & bitmask;
+	data_t row_bin = (data_t) row_bin_f;
+	data_t col_bin = (data_t) col_bin_f;
+	data_t magnitude = (data_t) magnitude_f;
+	data_t orientation_bin = (data_t) orientation_bin_f;
 
 	// split the row_bin and col_bin into their integer and fractional parts
 	uint16_t row_int = row_bin >> 16;
