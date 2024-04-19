@@ -1,4 +1,5 @@
 from numpy import all, any, array, arctan2, cos, sin, exp, dot, log, logical_and, roll, sqrt, stack, trace, unravel_index, pi, deg2rad, rad2deg, where, zeros, floor, full, nan, isnan, round, float32
+import numpy as np
 from numpy.linalg import det, lstsq, norm
 import cv2
 from cv2 import resize, GaussianBlur, subtract, KeyPoint, INTER_LINEAR, INTER_NEAREST
@@ -6,8 +7,6 @@ from functools import cmp_to_key
 import logging
 import time
 from pynq import allocate
-from fxpmath import Fxp
-from rig.type_casts import fp_to_float
 
 
 logger = logging.getLogger(__name__)
@@ -69,6 +68,7 @@ def findScaleSpaceExtrema(gaussian_images, dog_images, num_intervals, sigma, ima
     for octave_index, dog_images_in_octave in enumerate(dog_images):
         for image_index, (first_image, second_image, third_image) in enumerate(zip(dog_images_in_octave, dog_images_in_octave[1:], dog_images_in_octave[2:])):
             for i in range(image_border_width, first_image.shape[0] - image_border_width):
+                print(i)
                 for j in range(image_border_width, first_image.shape[1] - image_border_width):
                     if isPixelAnExtremum(first_image[i-1:i+2, j-1:j+2], second_image[i-1:i+2, j-1:j+2], third_image[i-1:i+2, j-1:j+2], threshold):
                         localization_result = localizeExtremumViaQuadraticFit(i, j, image_index + 1, octave_index, num_intervals, dog_images_in_octave, sigma, contrast_threshold, image_border_width)
@@ -269,19 +269,18 @@ def fpga_zip(*arrays):
     input_buf = []
     for i in range(minimum):
         #convert values to fixed point
-        row_bin_fixed = Fxp(arrays[0][i], signed=True, n_word=32, n_frac=16)
-        col_bin_fixed = Fxp(arrays[1][i], signed=True, n_word=32, n_frac=16)
-        magnitude_fixed = Fxp(arrays[2][i], signed=True, n_word=32, n_frac=16)
-        orientation_bin_fixed = Fxp(arrays[3][i], signed=True, n_word=32, n_frac=16)
-        in_val = np.uint128(str(row_bin_fixed.bin()) + str(col_bin_fixed.bin()) + str(magnitude_fixed.bin()) + str(orientation_bin_fixed.bin()))
+        row_bin_fixed = np.float32(arrays[0][i]).tobytes
+        col_bin_fixed = np.float32(arrays[1][i]).tobytes
+        magnitude_fixed = np.float32(arrays[2][i]).tobytes
+        orientation_bin_fixed = np.float32(arrays[3][i]).tobytes
+        in_val = b''.join(row_bin_fixed, col_bin_fixed, magnitude_fixed, orientation_bin_fixed)
         input_buf.append(in_val)
     return input_buf
 
 def fpga_unzip(array):
     histogram_tensor = []
     for val in array[::-1]:
-        f = fp_to_float(n_frac=16)
-        histogram_tensor.append(f(int(val,2)))
+        histogram_tensor.append(val)
     return histogram_tensor
 
 
@@ -307,9 +306,7 @@ def generateDescriptors_hardware(keypoints, gaussian_images, dma, window_width=4
         magnitude_list = []
         orientation_bin_list = []
         histogram_tensor = zeros((window_width + 2, window_width + 2, num_bins)).tolist()   # first two dimensions are increased by 2 to account for border effects
-        output_buffer = allocate(shape=(len(histogram_tensor),len(histogram_tensor[0]),len(histogram_tensor[0][1])), dtype=np.uint32)
-
-        
+        output_buffer = allocate(shape=(len(histogram_tensor),len(histogram_tensor[0]),len(histogram_tensor[0][0])), dtype=float32)
 
         # Descriptor window size (described by half_width)
         hist_width = scale_multiplier * 0.5 * scale * keypoint.size
@@ -338,7 +335,7 @@ def generateDescriptors_hardware(keypoints, gaussian_images, dma, window_width=4
         
         # do trilenear interpolation using the fpga overlay
         input_buf = fpga_zip(row_bin_list, col_bin_list, magnitude_list, orientation_bin_list)
-        input_buffer = allocate(shape=(len(input_buf)), dtype=np.uint128)
+        input_buffer = allocate(shape=(len(input_buf)), dtype=bytes(128))
         input_buffer[:] = input_buf
         dma.sendchannel.transfer(input_buffer)
         dma.recvchannel.transfer(output_buffer)
@@ -512,70 +509,70 @@ def computeKeypointsAndDescriptors(image, sigma=1.6, num_intervals=3, assumed_bl
 
     return keypoints, descriptors
 
-import numpy as np
-import cv2
-# import pysift
-from matplotlib import pyplot as plt
-import logging
-logger = logging.getLogger(__name__)
+# import numpy as np
+# import cv2
+# # import pysift
+# from matplotlib import pyplot as plt
+# import logging
+# logger = logging.getLogger(__name__)
 
-MIN_MATCH_COUNT = 10
+# MIN_MATCH_COUNT = 10
 
-img1 = cv2.imread('dino_data/dino00.jpg', cv2.IMREAD_GRAYSCALE)
-img2 = cv2.imread('dino_data/dino01.jpg', cv2.IMREAD_GRAYSCALE)  
+# img1 = cv2.imread('dino_data/dino00.jpg', cv2.IMREAD_GRAYSCALE)
+# img2 = cv2.imread('dino_data/dino01.jpg', cv2.IMREAD_GRAYSCALE)  
 
-# Compute SIFT keypoints and descriptors
-kp1, des1 = computeKeypointsAndDescriptors(img1)
-kp2, des2 = computeKeypointsAndDescriptors(img2)
+# # Compute SIFT keypoints and descriptors
+# kp1, des1 = computeKeypointsAndDescriptors(img1)
+# kp2, des2 = computeKeypointsAndDescriptors(img2)
 
-# Initialize and use FLANN
-FLANN_INDEX_KDTREE = 0
-index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
-search_params = dict(checks = 50)
-flann = cv2.FlannBasedMatcher(index_params, search_params)
-matches = flann.knnMatch(des1, des2, k=2)
+# # Initialize and use FLANN
+# FLANN_INDEX_KDTREE = 0
+# index_params = dict(algorithm = FLANN_INDEX_KDTREE, trees = 5)
+# search_params = dict(checks = 50)
+# flann = cv2.FlannBasedMatcher(index_params, search_params)
+# matches = flann.knnMatch(des1, des2, k=2)
 
-# Lowe's ratio test
-good = []
-for m, n in matches:
-    if m.distance < 0.7 * n.distance:
-        good.append(m)
+# # Lowe's ratio test
+# good = []
+# for m, n in matches:
+#     if m.distance < 0.7 * n.distance:
+#         good.append(m)
 
-if len(good) > MIN_MATCH_COUNT:
-    # Estimate homography between template and scene
-    src_pts = np.float32([ kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
-    dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
+# if len(good) > MIN_MATCH_COUNT:
+#     # Estimate homography between template and scene
+#     src_pts = np.float32([ kp1[m.queryIdx].pt for m in good]).reshape(-1, 1, 2)
+#     dst_pts = np.float32([ kp2[m.trainIdx].pt for m in good]).reshape(-1, 1, 2)
 
-    M = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)[0]
+#     M = cv2.findHomography(src_pts, dst_pts, cv2.RANSAC, 5.0)[0]
 
-    # Draw detected template in scene image
-    h, w = img1.shape
-    pts = np.float32([[0, 0],
-                      [0, h - 1],
-                      [w - 1, h - 1],
-                      [w - 1, 0]]).reshape(-1, 1, 2)
-    dst = cv2.perspectiveTransform(pts, M)
+#     # Draw detected template in scene image
+#     h, w = img1.shape
+#     pts = np.float32([[0, 0],
+#                       [0, h - 1],
+#                       [w - 1, h - 1],
+#                       [w - 1, 0]]).reshape(-1, 1, 2)
+#     dst = cv2.perspectiveTransform(pts, M)
 
-    img2 = cv2.polylines(img2, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
+#     img2 = cv2.polylines(img2, [np.int32(dst)], True, 255, 3, cv2.LINE_AA)
 
-    h1, w1 = img1.shape
-    h2, w2 = img2.shape
-    nWidth = w1 + w2
-    nHeight = max(h1, h2)
-    hdif = int((h2 - h1) / 2)
-    newimg = np.zeros((nHeight, nWidth, 3), np.uint8)
+#     h1, w1 = img1.shape
+#     h2, w2 = img2.shape
+#     nWidth = w1 + w2
+#     nHeight = max(h1, h2)
+#     hdif = int((h2 - h1) / 2)
+#     newimg = np.zeros((nHeight, nWidth, 3), np.uint8)
 
-    for i in range(3):
-        newimg[hdif:hdif + h1, :w1, i] = img1
-        newimg[:h2, w1:w1 + w2, i] = img2
+#     for i in range(3):
+#         newimg[hdif:hdif + h1, :w1, i] = img1
+#         newimg[:h2, w1:w1 + w2, i] = img2
 
-    # Draw SIFT keypoint matches
-    for m in good:
-        pt1 = (int(kp1[m.queryIdx].pt[0]), int(kp1[m.queryIdx].pt[1] + hdif))
-        pt2 = (int(kp2[m.trainIdx].pt[0] + w1), int(kp2[m.trainIdx].pt[1]))
-        cv2.line(newimg, pt1, pt2, (255, 0, 0))
+#     # Draw SIFT keypoint matches
+#     for m in good:
+#         pt1 = (int(kp1[m.queryIdx].pt[0]), int(kp1[m.queryIdx].pt[1] + hdif))
+#         pt2 = (int(kp2[m.trainIdx].pt[0] + w1), int(kp2[m.trainIdx].pt[1]))
+#         cv2.line(newimg, pt1, pt2, (255, 0, 0))
 
-    plt.imshow(newimg)
-    plt.show()
-else:
-    print("Not enough matches are found - %d/%d" % (len(good), MIN_MATCH_COUNT))
+#     plt.imshow(newimg)
+#     plt.show()
+# else:
+#     print("Not enough matches are found - %d/%d" % (len(good), MIN_MATCH_COUNT))
