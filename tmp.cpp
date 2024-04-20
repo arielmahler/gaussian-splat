@@ -2,7 +2,7 @@
 #include <ap_axi_sdata.h>
 #include <ap_utils.h>
 
-typedef ap_axis<128,1,1,1> AXI_VAL;
+typedef ap_axis<64,1,1,1> AXI_VAL;
 typedef ap_axis<32,1,1,1> RET_VAL;
 typedef ap_int<32> uint32_t;
 typedef ap_int<16> uint16_t;
@@ -12,7 +12,7 @@ typedef ap_fixed<32, 16, AP_TRN, AP_SAT> data_t;
 typedef ap_fixed<32, 16, AP_TRN, AP_SAT> tensor_t;
 
 // Placeholder type
-typedef ap_int<128> payload_t;
+typedef ap_int<64> payload_t;
 typedef ap_fixed<32, 16, AP_TRN, AP_SAT> coef_t;
 
 #define WIN_WIDTH 4
@@ -48,10 +48,10 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	// Let each of the values exist along 32 bits
 	uint32_t bitmask = 0xFFFFFFFF;
 	payload_t data = tmp1.data;
-	float row_bin_f = (data >> 0) & bitmask;
-	float col_bin_f = (data >> 32) & bitmask;
-	float magnitude_f = (data >> 64) & bitmask;
-	float orientation_bin_f = (data >> 96) & bitmask;
+	half row_bin_f = (data >> 0) & bitmask;
+	half col_bin_f = (data >> 16) & bitmask;
+	half magnitude_f = (data >> 32) & bitmask;
+	half orientation_bin_f = (data >> 48) & bitmask;
 	data_t row_bin = (data_t) row_bin_f;
 	data_t col_bin = (data_t) col_bin_f;
 	data_t magnitude = (data_t) magnitude_f;
@@ -126,7 +126,6 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	output.dest = tmp1.dest;
 	output.id = tmp1.id;
 	output.user = tmp1.user;
-	y.write(output);
 
 	if (tmp1.last) {
 		break;
@@ -137,8 +136,8 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
   int dim1 = (WIN_WIDTH + 2);
   int dim2 = (WIN_WIDTH + 2);
   int dim3 = N_BINS;
-  while (dim1 > 0) {
-	  output.data = histogram_tensor[dim1][dim2][dim3];
+  while (dim1 >= 0) {
+	  output.data = (float)histogram_tensor[dim1][dim2][dim3];
 	  output.last = 0;
 
 	  if (dim3 > 0) {
@@ -153,5 +152,6 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	  } else {
 		  output.last = 1;
 	  }
+	  y.write(output);
   }
 }
