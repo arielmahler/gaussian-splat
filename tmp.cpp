@@ -76,14 +76,10 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	coef_t c1 = magnitude * row_fraction;
 	coef_t c0 = magnitude * (1 - row_fraction);
 
-//	ap_wait();
-
 	coef_t c11 = c1 * col_fraction;
 	coef_t c10 = c1 * (1 - col_fraction);
 	coef_t c01 = c0 * col_fraction;
 	coef_t c00 = c0 * (1 - col_fraction);
-
-//	ap_wait();
 
 	coef_t c111 = c11 * orientation_fraction;
 	coef_t c110 = c11 * (1 - orientation_fraction);
@@ -93,8 +89,6 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	coef_t c010 = c01 * (1 - orientation_fraction);
 	coef_t c001 = c00 * orientation_fraction;
 	coef_t c000 = c00 * (1 - orientation_fraction);
-
-	ap_wait();
 
 	// Add tensors
 	data_t read1 = histogram_tensor[row_int + 1][col_int + 1][orientation_bin_int];
@@ -108,8 +102,6 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 
 //#pragma HLS PROTOCOL mode=fixed
 
-	ap_wait();
-
 	histogram_tensor[row_int + 1][col_int + 1][orientation_bin_int] = c000 + read1;
 	histogram_tensor[row_int + 1][col_int + 1][(orientation_bin_int + 1) % N_BINS] = c001 + read2;
 	histogram_tensor[row_int + 1][col_int + 2][orientation_bin_int] = c010 + read3;
@@ -119,12 +111,6 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	histogram_tensor[row_int + 2][col_int + 2][orientation_bin_int] = c110 + read7;
 	histogram_tensor[row_int + 2][col_int + 2][(orientation_bin_int + 1) % N_BINS] = c111 + read8;
 
-	ap_wait();
-
-	output.keep = tmp1.keep;
-	output.strb = tmp1.strb;
-	output.dest = tmp1.dest;
-	output.id = tmp1.id;
 	output.user = tmp1.user;
 
 	if (tmp1.last) {
@@ -136,9 +122,16 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
   int dim1 = (WIN_WIDTH + 2);
   int dim2 = (WIN_WIDTH + 2);
   int dim3 = N_BINS;
+
+  // Additional flags
+  ap_uint<4> TKEEP = 0xf;
+  ap_uint<4> TSTRB = 0xf;
+
   while (dim1 >= 0) {
 	  output.data = (float)histogram_tensor[dim1][dim2][dim3];
 	  output.last = 0;
+	  output.keep = TKEEP;
+	  output.strb = TSTRB;
 
 	  if (dim3 > 0) {
 		  dim3 -= 1;
@@ -149,9 +142,12 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 		  dim1 -= 1;
 		  dim2 = WIN_WIDTH + 2;
 		  dim3 = N_BINS;
-	  } else {
-		  output.last = 1;
+	  } else { // Exit while loop
+		  break;
 	  }
 	  y.write(output);
   }
+  output.data = (float)histogram_tensor[0][0][0];
+  output.last = 1;
+  y.write(output);
 }
