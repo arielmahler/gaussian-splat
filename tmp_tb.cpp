@@ -34,6 +34,8 @@ int main()
   histogram_tensor(A,B);
   B.read(tmp2);
 
+  float check_val = tmp2.data.to_float();
+
   if (tmp2.data.to_float() != 105)
   {
     cout << "ERROR: results mismatch" << endl;

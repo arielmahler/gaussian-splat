@@ -9,7 +9,7 @@ typedef ap_fixed<8, 0, AP_TRN, AP_SAT> frac_t;
 // TODO: revisit these types
 typedef ap_fixed<16, 8, AP_TRN, AP_SAT> data_t;
 typedef ap_fixed<32, 16, AP_TRN, AP_SAT> tensor_t;
-
+// comment to update file ;)
 // Placeholder type
 typedef long long payload_t;
 typedef ap_fixed<16, 8, AP_TRN, AP_SAT> coef_t;
@@ -68,19 +68,19 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 
 	int16_t in_f = (data >> 0) & bitmask;
 	ic.ui = ((in_f&sign_bitmask)<<16) | (((in_f&exp_bitmask)+0x1C000)<<13) | ((in_f&mantissa_bitmask)<<13);
-	half row_bin_h = ic.f;
+	half orientation_bin_h = ic.f;
 
 	in_f = (data >> 16) & bitmask;
 	ic.ui = ((in_f&sign_bitmask)<<16) | (((in_f&exp_bitmask)+0x1C000)<<13) | ((in_f&mantissa_bitmask)<<13);
-	half col_bin_h = ic.f;
+	half magnitude_h = ic.f;
 
 	in_f = (data >> 32) & bitmask;
 	ic.ui = ((in_f&sign_bitmask)<<16) | (((in_f&exp_bitmask)+0x1C000)<<13) | ((in_f&mantissa_bitmask)<<13);
-	half magnitude_h = ic.f;
+	half col_bin_h = ic.f;
 
 	in_f = (data >> 48) & bitmask;
 	ic.ui = ((in_f&sign_bitmask)<<16) | (((in_f&exp_bitmask)+0x1C000)<<13) | ((in_f&mantissa_bitmask)<<13);
-	half orientation_bin_h = ic.f;
+	half row_bin_h = ic.f;
 
 	data_t row_bin = (data_t) row_bin_h;
 	data_t col_bin = (data_t) col_bin_h;
@@ -154,9 +154,8 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
   int dim3 = N_BINS;
 
   while (dim1 >= 0) {
-	  output.data = (float) 1.10123;
 
-	  //	  output.data = histogram_tensor[dim1][dim2][dim3].to_float();
+	  output.data = histogram_tensor[dim1][dim2][dim3].to_float();
 	  output.last = 0;
 	  output.keep = TKEEP_on;
 	  output.strb = TSTRB_on;
