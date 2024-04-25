@@ -1,11 +1,12 @@
 #include <hls_stream.h>
 #include <ap_axi_sdata.h>
 #include <ap_utils.h>
-#include "hls_math.h"
+#include <hls_math.h>
+#include <ap_fixed.h>
 
 typedef ap_axis<64,1,1,1> AXI_VAL;
 typedef ap_axis<32,1,1,1> RET_VAL;
-typedef ap_fixed<8, 0, AP_TRN, AP_SAT> frac_t;
+typedef ap_fixed<9, 1, AP_TRN, AP_SAT> frac_t;
 // TODO: revisit these types
 typedef ap_fixed<16, 8, AP_TRN, AP_SAT> data_t;
 typedef ap_fixed<32, 16, AP_TRN, AP_SAT> tensor_t;
@@ -87,13 +88,21 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	data_t magnitude = (data_t) magnitude_h;
 	data_t orientation_bin = (data_t) orientation_bin_h;
 
+	float test_row_bin = row_bin.to_float();
+	float test_col_bin = col_bin.to_float();
+	float test_mag = magnitude.to_float();
+	float test_orientation_bin = orientation_bin.to_float();
+
 	// split the row_bin and col_bin into their integer and fractional parts
-	int8_t row_int = row_bin >> 8;
-	frac_t row_fraction = row_bin & 0xFF;
-	int8_t col_int = col_bin >> 8;
-	frac_t col_fraction = col_bin & 0xFF;
-	int8_t orientation_bin_int = orientation_bin >> 8;
-	frac_t orientation_fraction = orientation_bin & 0xFF;
+//	int8_t row_int = (row_bin >> 8).to_int();
+	int8_t row_int = row_bin.to_int();
+	frac_t row_fraction = row_bin.to_float() - (float)row_int;
+	float test_fraction = row_fraction.to_float();
+//	float test_fraction = (row_bin & 0x00ff).to_float();
+	int8_t col_int = col_bin.to_int();
+	frac_t col_fraction = col_bin.to_float() - (float)col_int;
+	int8_t orientation_bin_int = orientation_bin.to_int();
+	frac_t orientation_fraction = orientation_bin.to_float() - (float)orientation_bin_int;
 
 	if (orientation_bin_int < 0) {
 		orientation_bin_int += N_BINS;
