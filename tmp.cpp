@@ -7,10 +7,8 @@
 typedef ap_axis<64,1,1,1> AXI_VAL;
 typedef ap_axis<32,1,1,1> RET_VAL;
 typedef ap_fixed<9, 1, AP_TRN, AP_SAT> frac_t;
-// TODO: revisit these types
 typedef ap_fixed<16, 8, AP_TRN, AP_SAT> data_t;
-typedef ap_fixed<32, 16, AP_TRN, AP_SAT> tensor_t;
-// comment to update file ;)
+typedef ap_fixed<16, 8, AP_TRN, AP_SAT> tensor_t;
 // Placeholder type
 typedef long long payload_t;
 typedef ap_fixed<16, 8, AP_TRN, AP_SAT> coef_t;
@@ -30,11 +28,15 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 #pragma HLS INTERFACE ap_ctrl_none port=return
 
   // Create histogram_tensor, setting all values to zero
-  tensor_t histogram_tensor[WIN_WIDTH + 2][WIN_WIDTH + 2][N_BINS] = {};
+  tensor_t histogram_tensor[WIN_WIDTH + 2][WIN_WIDTH + 2][N_BINS];
 #pragma HLS BIND_STORAGE variable=histogram_tensor type=ram_t2p
-//#pragma HLS ARRAY_PARTITION dim=1 factor=1 type=block variable=histogram_tensor
-//#pragma HLS ARRAY_PARTITION dim=2 factor=1 type=block variable=histogram_tensor
-//#pragma HLS ARRAY_PARTITION dim=3 factor=1 type=block  variable=histogram_tensor
+  for (int i = 0; i < WIN_WIDTH + 2; i++){
+	  for(int j = 0; j < WIN_WIDTH + 2; j++){
+		  for(int k = 0; k < N_BINS; k++){
+			  histogram_tensor[i][j][k] = 0;
+		  }
+	  }
+  }
 
   // Additional flags
   ap_uint<4> TKEEP_on = 0xf;
@@ -88,17 +90,9 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	data_t magnitude = (data_t) magnitude_h;
 	data_t orientation_bin = (data_t) orientation_bin_h;
 
-	float test_row_bin = row_bin.to_float();
-	float test_col_bin = col_bin.to_float();
-	float test_mag = magnitude.to_float();
-	float test_orientation_bin = orientation_bin.to_float();
-
 	// split the row_bin and col_bin into their integer and fractional parts
-//	int8_t row_int = (row_bin >> 8).to_int();
 	int8_t row_int = row_bin.to_int();
 	frac_t row_fraction = row_bin.to_float() - (float)row_int;
-	float test_fraction = row_fraction.to_float();
-//	float test_fraction = (row_bin & 0x00ff).to_float();
 	int8_t col_int = col_bin.to_int();
 	frac_t col_fraction = col_bin.to_float() - (float)col_int;
 	int8_t orientation_bin_int = orientation_bin.to_int();
@@ -128,7 +122,6 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	coef_t c010 = c01 * (1 - orientation_fraction);
 	coef_t c001 = c00 * orientation_fraction;
 	coef_t c000 = c00 * (1 - orientation_fraction);
-
 	// Add tensors
 	tensor_t read1 = histogram_tensor[row_int + 1][col_int + 1][orientation_bin_int];
 	tensor_t read2 = histogram_tensor[row_int + 1][col_int + 1][(orientation_bin_int + 1) % N_BINS];
@@ -138,8 +131,6 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	tensor_t read6 = histogram_tensor[row_int + 2][col_int + 1][(orientation_bin_int + 1) % N_BINS];
 	tensor_t read7 = histogram_tensor[row_int + 2][col_int + 2][orientation_bin_int];
 	tensor_t read8 = histogram_tensor[row_int + 2][col_int + 2][(orientation_bin_int + 1) % N_BINS];
-
-//#pragma HLS PROTOCOL mode=fixed
 
 	histogram_tensor[row_int + 1][col_int + 1][orientation_bin_int] = c000 + read1;
 	histogram_tensor[row_int + 1][col_int + 1][(orientation_bin_int + 1) % N_BINS] = c001 + read2;
@@ -157,33 +148,19 @@ void histogram_tensor (hls::stream<AXI_VAL>& x, hls::stream<RET_VAL>& y) {
 	}
   }
 
-  // total area of the array
-  int dim1 = (WIN_WIDTH + 2);
-  int dim2 = (WIN_WIDTH + 2);
-  int dim3 = N_BINS;
+  input_conversion out;
+  for (int i = (WIN_WIDTH + 1); i >= 0; i--){
+	  for(int j = (WIN_WIDTH + 1); j >= 0; j--){
+		  for(int k = (N_BINS - 1); k >= 0; k--){
+			  out.f = histogram_tensor[i][j][k].to_float();
+			  output.data = out.ui;
+			  output.last = (i == 0) && (j == 0) && (k == 0);
+			  output.keep = TKEEP_on;
+			  output.strb = TSTRB_on;
 
-  while (dim1 >= 0) {
+			  y.write(output);
 
-	  output.data = histogram_tensor[dim1][dim2][dim3].to_float();
-	  output.last = 0;
-	  output.keep = TKEEP_on;
-	  output.strb = TSTRB_on;
-
-	  if (dim3 > 0) {
-		  dim3 -= 1;
-	  } else if (dim2 > 0) {
-		  dim2 -= 1;
-		  dim3 = N_BINS;
-	  } else if (dim1 > 0) {
-		  dim1 -= 1;
-		  dim2 = WIN_WIDTH + 2;
-		  dim3 = N_BINS;
-	  } else { // Exit while loop
-		  break;
+		  }
 	  }
-	  y.write(output);
   }
-  output.data = histogram_tensor[0][0][0].to_float();
-  output.last = 1;
-  y.write(output);
 }
