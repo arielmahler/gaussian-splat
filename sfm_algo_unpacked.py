@@ -270,11 +270,11 @@ def fpga_zip(row_array, col_array, mag_array, ori_array):
     input_buf = []
     for i in range(minimum):
         #convert values to fixed point
-        row_bin_fixed = np.float32(row_array[i]).tobytes()
-        col_bin_fixed = np.float32(col_array[i]).tobytes()
-        magnitude_fixed = np.float32(mag_array[i]).tobytes()
-        orientation_bin_fixed = np.float32(ori_array[i]).tobytes()
-        in_val = b''.join([row_bin_fixed, col_bin_fixed, magnitude_fixed, orientation_bin_fixed])
+        row_bin_fixed = np.float16(row_array[i])
+        col_bin_fixed = np.float16(col_array[i])
+        magnitude_fixed = np.float16(mag_array[i])
+        orientation_bin_fixed = np.float16(ori_array[i])
+        in_val = [row_bin_fixed, col_bin_fixed, magnitude_fixed, orientation_bin_fixed]
         input_buf.append(in_val)
     return input_buf
 
@@ -282,14 +282,12 @@ def fpga_unzip(array):
     histogram_tensor = []
     for val in array[::-1]:
         histogram_tensor.append(val)
-    return histogram_tensor
-
-
+    return np.array(histogram_tensor)
 
 def generateDescriptors_hardware(keypoints, gaussian_images, dma, window_width=4, num_bins=8, scale_multiplier=3, descriptor_max_value=0.2):
     """Generate descriptors for each keypoint
     """
-    logger.debug('Generating descriptors...')
+    print("Generating descriptors")
     descriptors = []
 
     for keypoint in keypoints:
@@ -307,7 +305,6 @@ def generateDescriptors_hardware(keypoints, gaussian_images, dma, window_width=4
         magnitude_list = []
         orientation_bin_list = []
         histogram_tensor = zeros((window_width + 2, window_width + 2, num_bins)).tolist()   # first two dimensions are increased by 2 to account for border effects
-        output_buffer = allocate(shape=(len(histogram_tensor),len(histogram_tensor[0]),len(histogram_tensor[0][0])), dtype=float32)
 
         # Descriptor window size (described by half_width)
         hist_width = scale_multiplier * 0.5 * scale * keypoint.size
@@ -336,16 +333,21 @@ def generateDescriptors_hardware(keypoints, gaussian_images, dma, window_width=4
         
         # do trilenear interpolation using the fpga overlay
         input_buf = fpga_zip(row_bin_list, col_bin_list, magnitude_list, orientation_bin_list)
-        input_buffer = allocate(shape=(len(input_buf), 4), dtype=np.float32)
+        if (len(input_buf) == 0):
+            print(".", end='')
+            continue;
+#         print(input_buf)
+        input_buffer = allocate(shape=(len(input_buf), 4), dtype=np.float16)
+        array_area = len(histogram_tensor) * len(histogram_tensor[0]) * len(histogram_tensor[0][0])
+        output_buffer = allocate(shape=(array_area,), dtype=float32)
+        print('|', end='')
         input_buffer[:] = input_buf
         dma.sendchannel.transfer(input_buffer)
-        dma.recvchannel.transfer(output_buffer)
         dma.sendchannel.wait()
+        dma.recvchannel.transfer(output_buffer)
         dma.recvchannel.wait()
-
         descriptor_vector = fpga_unzip(output_buffer)
-        input_buffer.freebuffer()
-        output_buffer.freebuffer()
+        del output_buffer, input_buffer
         
         # Threshold and normalize descriptor_vector
         threshold = norm(descriptor_vector) * descriptor_max_value
