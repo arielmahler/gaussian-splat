@@ -11,6 +11,7 @@ from pynq import allocate
 
 logger = logging.getLogger(__name__)
 float_tolerance = 1e-7
+hardware_in = np.dtype([('row', float), ('col', float), ('magnitude', float), ('orientation', float)])
 
 def generateBaseImage(image, sigma, assumed_blur):
     logger.debug('Generating base image...')
@@ -264,16 +265,16 @@ def unpackOctave(keypoint):
     scale = 1 / float32(1 << octave) if octave >= 0 else float32(1 << -octave)
     return octave, layer, scale
 
-def fpga_zip(*arrays):
-    minimum = min([len(array) for array in arrays])
+def fpga_zip(row_array, col_array, mag_array, ori_array):
+    minimum = min([len(array) for array in [row_array, col_array, mag_array, ori_array]])
     input_buf = []
     for i in range(minimum):
         #convert values to fixed point
-        row_bin_fixed = np.float32(arrays[0][i]).tobytes
-        col_bin_fixed = np.float32(arrays[1][i]).tobytes
-        magnitude_fixed = np.float32(arrays[2][i]).tobytes
-        orientation_bin_fixed = np.float32(arrays[3][i]).tobytes
-        in_val = b''.join(row_bin_fixed, col_bin_fixed, magnitude_fixed, orientation_bin_fixed)
+        row_bin_fixed = np.float32(row_array[i]).tobytes()
+        col_bin_fixed = np.float32(col_array[i]).tobytes()
+        magnitude_fixed = np.float32(mag_array[i]).tobytes()
+        orientation_bin_fixed = np.float32(ori_array[i]).tobytes()
+        in_val = b''.join([row_bin_fixed, col_bin_fixed, magnitude_fixed, orientation_bin_fixed])
         input_buf.append(in_val)
     return input_buf
 
@@ -335,7 +336,7 @@ def generateDescriptors_hardware(keypoints, gaussian_images, dma, window_width=4
         
         # do trilenear interpolation using the fpga overlay
         input_buf = fpga_zip(row_bin_list, col_bin_list, magnitude_list, orientation_bin_list)
-        input_buffer = allocate(shape=(len(input_buf)), dtype=bytes(128))
+        input_buffer = allocate(shape=(len(input_buf), 4), dtype=np.float32)
         input_buffer[:] = input_buf
         dma.sendchannel.transfer(input_buffer)
         dma.recvchannel.transfer(output_buffer)
@@ -343,8 +344,9 @@ def generateDescriptors_hardware(keypoints, gaussian_images, dma, window_width=4
         dma.recvchannel.wait()
 
         descriptor_vector = fpga_unzip(output_buffer)
-
-
+        input_buffer.freebuffer()
+        output_buffer.freebuffer()
+        
         # Threshold and normalize descriptor_vector
         threshold = norm(descriptor_vector) * descriptor_max_value
         descriptor_vector[descriptor_vector > threshold] = threshold
